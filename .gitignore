@@ -4,6 +4,7 @@
 # westpa stuff
 *.log
 *.h5
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
