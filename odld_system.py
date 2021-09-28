@@ -1,5 +1,4 @@
 from __future__ import print_function, division
-from os.path import isfile
 
 import numpy as np
 from numpy.random import normal as random_normal
@@ -33,7 +32,6 @@ targetstate = [1.9]  # enter boundaries for target state or None if there is no 
 targetstatedirection = -1  # if your target state is meant to be greater that the starting pcoor use 1 or else use -1
 activetarget = 1  # if no target state make this zero
 splitIsolated = True  # True if you want to split the most isolated walker (this will add an extra bin)
-BIN_BOUNDs_FILE = "binbounds.txt"
 
 
 #########
@@ -62,13 +60,8 @@ def map_mab(coords, mask, output, *args, **kwargs):
     flipdifflist = []
     # identify the outlying segments
     for n in range(numberofdim):
-        if isfile(BIN_BOUNDs_FILE):
-            extremabounds = np.loadtxt(BIN_BOUNDs_FILE)
-            currentmax = np.amax(extremabounds[:, n])
-            currentmin = np.amin(extremabounds[:, n])
-        else:
-            currentmax = np.amax(coords[:, n])
-            currentmin = np.amin(coords[:, n])
+        currentmax = np.amax(coords[:, n])
+        currentmin = np.amin(coords[:, n])
         if maxcap[n] < currentmax:
             currentmax = maxcap[n]
         if mincap[n] > currentmin:
@@ -180,7 +173,6 @@ class ODLDPropagator(WESTPropagator):
         state.pcoord = self.initial_pcoord.copy()
 
     def gen_istate(self, basis_state, initial_state):
-        print("istate")
         initial_state.pcoord = self.initial_pcoord.copy()
         initial_state.istate_status = initial_state.ISTATE_STATUS_PREPARED
         return initial_state
