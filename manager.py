@@ -79,6 +79,7 @@ class MABSimManager(WESimManager):
                 raise AssertionError('untracked future {!r}'.format(future))
 
         self.we_driver.assign(self.segments.values(), endprop=True)
+        self.get_istate_futures()
         log.debug('done with propagation')
         self.save_bin_data()
         self.data_manager.flush_backing()
