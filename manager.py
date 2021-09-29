@@ -78,7 +78,7 @@ class MABSimManager(WESimManager):
                 log.error('unknown future {!r} received from work manager'.format(future))
                 raise AssertionError('untracked future {!r}'.format(future))
 
-        self.we_driver.assign(self.segments.values(), endprop=True)
+        self.we_driver.assign(self.segments.values())
         self.get_istate_futures()
         log.debug('done with propagation')
         self.save_bin_data()
