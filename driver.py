@@ -9,9 +9,8 @@ log = logging.getLogger(__name__)
 class MABDriver(WEDriver):
     def assign(self, segments, initializing=False):
         '''Assign segments to initial and final bins, and update the (internal) lists of used and available
-        initial states. If ``initializing`` is True, then the "final" bin assignments will
-        be identical to the initial bin assignments, a condition required for seeding a new iteration from
-        pre-existing segments.'''
+        initial states. This function is adapted to the MAB scheme, so that the initla and final segments are
+        sent to the bin mapper at the same time, otherwise the inital and final bin boundaries can be inconsistent. '''
 
         # collect initial and final coordinates into one place
         n_segments = len(segments)
