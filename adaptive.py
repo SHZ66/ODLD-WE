@@ -60,9 +60,9 @@ def map_mab(coords, mask, output, *args, **kwargs):
         # detect the bottleneck segments
         if splitting:
             temp = np.column_stack((originalcoords[mask, n], weights[mask]))
-            I = temp[:, 0].argsort()
-            temp = temp[I]
-            seg_indices = np.arange(n_segments)[mask][I]
+            sorted_indices = temp[:, 0].argsort()
+            temp = temp[sorted_indices]
+            seg_indices = np.arange(n_segments)[mask][sorted_indices]
             for p in range(len(temp)):
                 if temp[p][1] == 0:
                     temp[p][1] = 10 ** -39
