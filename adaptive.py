@@ -4,7 +4,6 @@ import numpy as np
 from westpa.core.binning import FuncBinMapper
 
 
-#########
 def map_mab(coords, mask, output, *args, **kwargs):
     pca = kwargs.pop("pca", False)
     bottleneck = kwargs.pop("bottleneck", True)
