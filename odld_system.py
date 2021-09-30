@@ -23,18 +23,17 @@ pcoord_len = 21
 pcoord_dtype = np.float32
 # THESE ARE THE FOUR THINGS YOU SHOULD CHANGE
 bintargetcount = 10  # number of walkers per bin
-numberofdim = 1  # number of dimensions
-binsperdim = [10]  # You will have prod(binsperdim)+numberofdim*(2+2*splitIsolated)+activetarget bins total
+nbins = [10]  # You will have prod(binsperdim)+numberofdim*(2*splitIsolated) bins total
 pcoordlength = 2  # length of the pcoord
-do_pca = False  # choose to do principal component analysis
-targetstate = [1.9]  # enter boundaries for target state or None if there is no target state in that dimension
-targetstatedirection = -1  # if your target state is meant to be greater that the starting pcoor use 1 or else use -1
-activetarget = 1  # if no target state make this zero
-splitIsolated = True  # True if you want to split the most isolated walker (this will add an extra bin)
 
 
 #########
 def map_mab(coords, mask, output, *args, **kwargs):
+    pca = kwargs.pop("pca", False)
+    bottleneck = kwargs.pop("bottleneck", True)
+    nbins_per_dim = kwargs.get("nbins_per_dim")
+    ndim = len(nbins_per_dim)
+
     if not np.any(mask):
         return output
 
@@ -44,10 +43,10 @@ def map_mab(coords, mask, output, *args, **kwargs):
     weights = None
     isfinal = None
     splitting = False
-    if coords.shape[1] > numberofdim:
-        isfinal = allcoords[:, numberofdim + 1].astype(np.bool_)
-        coords = coords[isfinal, :numberofdim]
-        weights = allcoords[isfinal, numberofdim + 0]
+    if coords.shape[1] > ndim:
+        isfinal = allcoords[:, ndim + 1].astype(np.bool_)
+        coords = coords[isfinal, :ndim]
+        weights = allcoords[isfinal, ndim + 0]
         mask = mask[isfinal]
         splitting = True
 
@@ -55,7 +54,7 @@ def map_mab(coords, mask, output, *args, **kwargs):
 
     varcoords = np.copy(coords)
     originalcoords = np.copy(coords)
-    if do_pca and len(output) > 1:
+    if pca and len(output) > 1:
         colavg = np.mean(coords, axis=0)
         for i in range(len(coords)):
             for j in range(len(coords[i])):
@@ -66,7 +65,7 @@ def map_mab(coords, mask, output, *args, **kwargs):
         for i in range(len(eigvec)):
             if eigvec[i, i] < 0:
                 eigvec[:, i] = -1 * eigvec[:, i]
-        for i in range(numberofdim):
+        for i in range(ndim):
             for j in range(len(output)):
                 coords[j][i] = np.dot(varcoords[j], eigvec[:, i])
 
@@ -74,7 +73,7 @@ def map_mab(coords, mask, output, *args, **kwargs):
     minlist = []
     difflist = []
     flipdifflist = []
-    for n in range(numberofdim):
+    for n in range(ndim):
         # identify the boundary segments
         currentmax = np.amax(coords[mask, n])
         currentmin = np.amin(coords[mask, n])
@@ -115,38 +114,38 @@ def map_mab(coords, mask, output, *args, **kwargs):
                     flipmaxdiff = flipdiff
 
     # assign segments to bins
+    base_number = 2 * ndim
     for i in range(len(output)):
         if not allmask[i]:
             continue
 
-        holder = 2 * numberofdim
-        for n in range(numberofdim):
-            if (activetarget == 1) and targetstate[n] is not None:
-                if (allcoords[i, n] * targetstatedirection) >= (
-                    targetstate[n] * targetstatedirection
-                ):
-                    holder = np.prod(binsperdim) + numberofdim * 2
-            if holder == np.prod(binsperdim) + numberofdim * 2:
-                break
-            elif splitting and splitIsolated:
+        holder = base_number
+        for n in range(ndim):
+            if splitting and bottleneck:
                 if i == difflist[n]:
-                    holder = np.prod(binsperdim) + numberofdim * 2 + 2 * n + activetarget
+                    holder = np.prod(nbins_per_dim) + base_number + 2 * n
                     break
                 elif i == flipdifflist[n]:
-                    holder = np.prod(binsperdim) + numberofdim * 2 + 2 * n + activetarget + 1
+                    holder = np.prod(nbins_per_dim) + base_number + 2 * n + 1
                     break
 
-        if holder == 2 * numberofdim:
-            for j in range(numberofdim):
-                holder = holder + (
-                    np.digitize(
-                        allcoords[i][j],
-                        np.linspace(minlist[j], maxlist[j], binsperdim[j] + 1),
-                    )
-                    - 1
-                ) * np.prod(binsperdim[0:j])
+        if holder == base_number:
+            for j in range(ndim):
+                bins = np.linspace(minlist[j], maxlist[j], nbins_per_dim[j] + 1)
+                bin_number = np.digitize(allcoords[i][j], bins) - 1
+                holder += bin_number * np.prod(nbins_per_dim[:j])
         output[i] = holder
     return output
+
+
+class MABBinMapper(FuncBinMapper):
+    def __init__(self, nbins, bottleneck=True, pca=False):
+        kwargs = dict(nbins_per_dim=nbins,
+                      bottleneck=bottleneck,
+                      pca=pca)
+        ndim = len(nbins)
+        n_total_bins = np.prod(nbins) + ndim * (2 + 2 * bottleneck)
+        super().__init__(map_mab, n_total_bins, kwargs=kwargs)
 
 
 class ODLDPropagator(WESTPropagator):
@@ -247,13 +246,8 @@ class ODLDSystem(WESTSystem):
         self.pcoord_dtype = pcoord_dtype
         self.pcoord_len = pcoord_len
 
-        outer_mapper = RectilinearBinMapper([[0, 2, 6, 8, 10]])
-
-        adaptive_mapper = FuncBinMapper(
-            map_mab,
-            np.prod(binsperdim) + numberofdim * (2 + 2 * splitIsolated) + activetarget,
-        )
-
+        outer_mapper = RectilinearBinMapper([[0, 3, 4, 8, 10]])
+        adaptive_mapper = MABBinMapper(nbins, bottleneck=True, pca=False)
         self.bin_mapper = RecursiveBinMapper(outer_mapper)
         self.bin_mapper.add_mapper(adaptive_mapper, [7])
 
