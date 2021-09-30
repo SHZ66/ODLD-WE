@@ -123,4 +123,3 @@ class MABBinMapper(FuncBinMapper):
         ndim = len(nbins)
         n_total_bins = np.prod(nbins) + ndim * (2 + 2 * bottleneck)
         super().__init__(map_mab, n_total_bins, kwargs=kwargs)
-
