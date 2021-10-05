@@ -18,7 +18,10 @@ def map_mab(coords, mask, output, *args, **kwargs):
     isfinal = None
     splitting = False
     if coords.shape[1] > ndim:
-        isfinal = allcoords[:, ndim + 1].astype(np.bool_)
+        if coords.shape[1] > ndim + 1:
+            isfinal = allcoords[:, ndim + 1].astype(np.bool_)
+        else:
+            isfinal = np.ones(coords.shape[0], dtype=np.bool_)
         coords = coords[isfinal, :ndim]
         weights = allcoords[isfinal, ndim + 0]
         mask = mask[isfinal]
