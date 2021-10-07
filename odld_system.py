@@ -116,20 +116,3 @@ class ODLDPropagator(WESTPropagator):
             segment.status = segment.SEG_STATUS_COMPLETE
 
         return segments
-
-
-class ODLDSystem(WESTSystem):
-    def initialize(self):
-        self.pcoord_ndim = 1
-        self.pcoord_dtype = pcoord_dtype
-        self.pcoord_len = pcoord_len
-
-        outer_mapper = RectilinearBinMapper([[0, 3, 4, 8, 10]])
-        adaptive_mapper = MABBinMapper(nbins, bottleneck=True, pca=False)
-        self.bin_mapper = RecursiveBinMapper(outer_mapper)
-        self.bin_mapper.add_mapper(adaptive_mapper, [7])
-
-        # self.bin_mapper = RectilinearBinMapper([[0,1.3] + list(np.arange(1.4, 10.1, 0.1)) + [float('inf')]])
-        # self.bin_mapper = RectilinearBinMapper([list(np.arange(0.0, 10.1, 0.1))])
-        self.bin_target_counts = np.empty((self.bin_mapper.nbins,), np.int_)
-        self.bin_target_counts[...] = 10
