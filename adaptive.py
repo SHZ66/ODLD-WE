@@ -27,6 +27,13 @@ def map_mab(coords, mask, output, *args, **kwargs):
         mask = mask[isfinal]
         splitting = True
 
+    # in case where there is no final segments but initial ones in range
+    if not np.any(mask):
+        coords = allcoords[:, :ndim]
+        mask = allmask
+        weights = None
+        splitting = False
+
     n_segments = coords.shape[0]
 
     varcoords = np.copy(coords)
@@ -112,6 +119,25 @@ def map_mab(coords, mask, output, *args, **kwargs):
                 bin_number = np.digitize(allcoords[i][j], bins) - 1
                 holder += bin_number * np.prod(nbins_per_dim[:j])
         output[i] = holder
+
+    for n in range(ndim):
+        print(f"[MAB] Boundaries for dim{n}: {minlist[n]} - {maxlist[n]}")
+        if splitting and bottleneck:
+            fi = difflist[n]
+            bi = flipdifflist[n]
+
+            print(f"[MAB] Bottlenecks for dim{n} (forward):")
+            if fi is not None:
+                print(f"{allcoords[fi, n]}")
+            else:
+                print("None detected")
+
+            print(f"[MAB] Bottlenecks for dim{n} (backward):")
+            if bi is not None:
+                print(f"{allcoords[bi, n]}")
+            else:
+                print("None detected")
+
     return output
 
 
