@@ -59,22 +59,23 @@ def map_mab(coords, mask, output, *args, **kwargs):
     flipdifflist = []
     for n in range(ndim):
         # identify the boundary segments
-        currentmax = np.amax(coords[mask, n])
-        currentmin = np.amin(coords[mask, n])
-        maxlist.append(currentmax)
-        minlist.append(currentmin)
+        seg_indices = np.arange(n_segments)[mask]
+        maxi = np.argmax(coords[mask, n])
+        mini = np.argmin(coords[mask, n])
+        maxlist.append(seg_indices[maxi])
+        minlist.append(seg_indices[mini])
 
         # detect the bottleneck segments
         if splitting:
             temp = np.column_stack((originalcoords[mask, n], weights[mask]))
             sorted_indices = temp[:, 0].argsort()
             temp = temp[sorted_indices]
-            seg_indices = np.arange(n_segments)[mask][sorted_indices]
+            sorted_indices = seg_indices[sorted_indices]
             for p in range(len(temp)):
                 if temp[p][1] == 0:
                     temp[p][1] = 10 ** -39
             fliptemp = np.flipud(temp)
-            flip_seg_indices = np.flipud(seg_indices)
+            flip_seg_indices = np.flipud(sorted_indices)
 
             difflist.append(None)
             flipdifflist.append(None)
@@ -90,7 +91,7 @@ def map_mab(coords, mask, output, *args, **kwargs):
                     j = j + 1
                 diff = -np.log(comprob) + np.log(temp[i][1])
                 if diff > maxdiff:
-                    difflist[n] = seg_indices[i]
+                    difflist[n] = sorted_indices[i]
                     maxdiff = diff
                 flipdiff = -np.log(flipcomprob) + np.log(fliptemp[i][1])
                 if flipdiff > flipmaxdiff:
@@ -98,39 +99,58 @@ def map_mab(coords, mask, output, *args, **kwargs):
                     flipmaxdiff = flipdiff
 
     # assign segments to bins
-    base_number = 0
+    # the total number of linear bins + 2 boundary bins each dim
+    bottleneck_base = np.prod(nbins_per_dim) + 2 * ndim
     for i in range(len(output)):
         if not allmask[i]:
             continue
 
-        holder = base_number
+        special = False
         for n in range(ndim):
             if splitting and bottleneck:
                 if i == difflist[n]:
-                    holder = np.prod(nbins_per_dim) + base_number + 2 * n
+                    holder = bottleneck_base + 2 * n
+                    special = True
                     break
                 elif i == flipdifflist[n]:
-                    holder = np.prod(nbins_per_dim) + base_number + 2 * n + 1
+                    holder = bottleneck_base + 2 * n + 1
+                    special = True
                     break
+            if i == minlist[n]:
+                holder = 0
+                special = True
+                break
+            elif i == maxlist[n]:
+                holder = nbins_per_dim[n] + 1
+                special = True
+                break
 
-        if holder == base_number:
-            for j in range(ndim):
-                nbins = nbins_per_dim[j]
-                if minlist[j] == maxlist[j]:
+        if not special:
+            holder = 0
+            for n in range(ndim):
+                nbins = nbins_per_dim[n]
+                minidx = minlist[n]
+                maxidx = maxlist[n]
+                coord = allcoords[i][n]
+
+                minp = allcoords[minidx, n]
+                maxp = allcoords[maxidx, n]
+                bins = np.linspace(minp, maxp, nbins + 1)
+                bin_number = np.digitize(coord, bins)
+
+                # unlikely to happen unless two max pcoords are exactly the same
+                if bin_number >= nbins:
+                    bin_number = nbins - 1
+                if bin_number < 0:
                     bin_number = 0
-                else:
-                    bins = np.linspace(minlist[j], maxlist[j], nbins + 1)
-                    bin_number = np.digitize(allcoords[i][j], bins) - 1
-                    if bin_number >= nbins:
-                        bin_number = nbins - 1
-                    elif bin_number < 0:
-                        bin_number = 0
 
-                holder += bin_number * np.prod(nbins_per_dim[:j])
+                holder += bin_number * np.prod(nbins_per_dim[:n])
         output[i] = holder
 
     for n in range(ndim):
-        print(f"[MAB] Boundaries for dim{n}: {minlist[n]} - {maxlist[n]}")
+        mini = minlist[n]
+        maxi = maxlist[n]
+        print(f"[MAB] Boundaries for dim{n}: {allcoords[mini, n]} - {allcoords[maxi, n]}")
         if splitting and bottleneck:
             fi = difflist[n]
             bi = flipdifflist[n]
@@ -156,5 +176,5 @@ class MABBinMapper(FuncBinMapper):
                       bottleneck=bottleneck,
                       pca=pca)
         ndim = len(nbins)
-        n_total_bins = np.prod(nbins) + ndim * (2 * bottleneck)
+        n_total_bins = np.prod(nbins) + ndim * (2 + 2 * bottleneck)
         super().__init__(map_mab, n_total_bins, kwargs=kwargs)
