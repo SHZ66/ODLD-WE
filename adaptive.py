@@ -138,12 +138,6 @@ def map_mab(coords, mask, output, *args, **kwargs):
                 bins = np.linspace(minp, maxp, nbins + 1)
                 bin_number = np.digitize(coord, bins)
 
-                # unlikely to happen unless two max pcoords are exactly the same
-                if bin_number >= nbins:
-                    bin_number = nbins - 1
-                if bin_number < 0:
-                    bin_number = 0
-
                 holder += bin_number * np.prod(nbins_per_dim[:n])
         output[i] = holder
 
