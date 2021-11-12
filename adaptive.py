@@ -98,7 +98,7 @@ def map_mab(coords, mask, output, *args, **kwargs):
                     flipmaxdiff = flipdiff
 
     # assign segments to bins
-    base_number = 2 * ndim
+    base_number = 0
     for i in range(len(output)):
         if not allmask[i]:
             continue
@@ -147,5 +147,5 @@ class MABBinMapper(FuncBinMapper):
                       bottleneck=bottleneck,
                       pca=pca)
         ndim = len(nbins)
-        n_total_bins = np.prod(nbins) + ndim * (2 + 2 * bottleneck)
+        n_total_bins = np.prod(nbins) + ndim * (2 * bottleneck)
         super().__init__(map_mab, n_total_bins, kwargs=kwargs)
