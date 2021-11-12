@@ -115,8 +115,17 @@ def map_mab(coords, mask, output, *args, **kwargs):
 
         if holder == base_number:
             for j in range(ndim):
-                bins = np.linspace(minlist[j], maxlist[j], nbins_per_dim[j] + 1)
-                bin_number = np.digitize(allcoords[i][j], bins) - 1
+                nbins = nbins_per_dim[j]
+                if minlist[j] == maxlist[j]:
+                    bin_number = 0
+                else:
+                    bins = np.linspace(minlist[j], maxlist[j], nbins + 1)
+                    bin_number = np.digitize(allcoords[i][j], bins) - 1
+                    if bin_number >= nbins:
+                        bin_number = nbins - 1
+                    elif bin_number < 0:
+                        bin_number = 0
+
                 holder += bin_number * np.prod(nbins_per_dim[:j])
         output[i] = holder
 
