@@ -114,18 +114,22 @@ def map_mab(coords, mask, output, *args, **kwargs):
                 if coord == difflist[n]:
                     holder = bottleneck_base + 2 * n
                     special = True
+                    print("bottleneck walker (dim%d) assigned: " % (n), coord)
                     break
                 elif coord == flipdifflist[n]:
                     holder = bottleneck_base + 2 * n + 1
                     special = True
+                    print("bottleneck walker (dim%d) assigned: " % (n), coord)
                     break
             if coord == minlist[n]:
                 holder = boundary_base + 2 * n
                 special = True
+                print("boundary walker (min, dim%d) assigned: " % (n), coord)
                 break
             elif coord == maxlist[n]:
                 holder = boundary_base + 2 * n + 1
                 special = True
+                print("boundary walker (max, dim%d) assigned: " % (n), coord)
                 break
 
         if not special:
@@ -144,8 +148,8 @@ def map_mab(coords, mask, output, *args, **kwargs):
                     elif bin_number < 0:
                         bin_number = 0
                 elif bin_number >= nbins or bin_number < 0:
-                    print("coord dim%d: " % (n), coord)
-                    print("bins dim%d: " % (n), bins)
+                    print("coord dim%d: %f" % (n, coord))
+                    print("bins dim%d: %s" % (n, str(bins)))
                     print("bin number dim%d: %d" % (n, bin_number))
                     raise ValueError("Walker out of boundary")
 
