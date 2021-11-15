@@ -17,6 +17,10 @@ def map_mab(coords, mask, output, *args, **kwargs):
     weights = None
     isfinal = None
     splitting = False
+
+    # the segments should be sent in by the driver as half initial segments and half final segments
+    # allcoords contains all segments
+    # coords should contain ONLY final segments
     if coords.shape[1] > ndim:
         if coords.shape[1] > ndim + 1:
             isfinal = allcoords[:, ndim + 1].astype(np.bool_)
@@ -33,8 +37,6 @@ def map_mab(coords, mask, output, *args, **kwargs):
         mask = allmask
         weights = None
         splitting = False
-
-    n_segments = coords.shape[0]
 
     varcoords = np.copy(coords)
     originalcoords = np.copy(coords)
@@ -59,23 +61,20 @@ def map_mab(coords, mask, output, *args, **kwargs):
     flipdifflist = []
     for n in range(ndim):
         # identify the boundary segments
-        seg_indices = np.arange(n_segments)[mask]
-        maxi = np.argmax(coords[mask, n])
-        mini = np.argmin(coords[mask, n])
-        maxlist.append(seg_indices[maxi])
-        minlist.append(seg_indices[mini])
+        maxcoord = np.max(coords[mask, n])
+        mincoord = np.min(coords[mask, n])
+        maxlist.append(maxcoord)
+        minlist.append(mincoord)
 
         # detect the bottleneck segments
         if splitting:
             temp = np.column_stack((originalcoords[mask, n], weights[mask]))
             sorted_indices = temp[:, 0].argsort()
             temp = temp[sorted_indices]
-            sorted_indices = seg_indices[sorted_indices]
             for p in range(len(temp)):
                 if temp[p][1] == 0:
                     temp[p][1] = 10 ** -39
             fliptemp = np.flipud(temp)
-            flip_seg_indices = np.flipud(sorted_indices)
 
             difflist.append(None)
             flipdifflist.append(None)
@@ -91,75 +90,77 @@ def map_mab(coords, mask, output, *args, **kwargs):
                     j = j + 1
                 diff = -np.log(comprob) + np.log(temp[i][1])
                 if diff > maxdiff:
-                    difflist[n] = sorted_indices[i]
+                    difflist[n] = temp[i][0]
                     maxdiff = diff
                 flipdiff = -np.log(flipcomprob) + np.log(fliptemp[i][1])
                 if flipdiff > flipmaxdiff:
-                    flipdifflist[n] = flip_seg_indices[i]
+                    flipdifflist[n] = fliptemp[i][0]
                     flipmaxdiff = flipdiff
 
     # assign segments to bins
     # the total number of linear bins + 2 boundary bins each dim
-    bottleneck_base = np.prod(nbins_per_dim) + 2 * ndim
+    boundary_base = np.prod(nbins_per_dim)
+    bottleneck_base = boundary_base + 2 * ndim
     for i in range(len(output)):
         if not allmask[i]:
             continue
 
         special = False
+        holder = 0
         for n in range(ndim):
+            coord = allcoords[i][n]
+
             if splitting and bottleneck:
-                if i == difflist[n]:
+                if coord == difflist[n]:
                     holder = bottleneck_base + 2 * n
                     special = True
                     break
-                elif i == flipdifflist[n]:
+                elif coord == flipdifflist[n]:
                     holder = bottleneck_base + 2 * n + 1
                     special = True
                     break
-            if i == minlist[n]:
-                holder = 0
+            if coord == minlist[n]:
+                holder = boundary_base + 2 * n
                 special = True
                 break
-            elif i == maxlist[n]:
-                holder = nbins_per_dim[n] + 1
+            elif coord == maxlist[n]:
+                holder = boundary_base + 2 * n + 1
                 special = True
                 break
 
         if not special:
-            holder = 0
             for n in range(ndim):
-                nbins = nbins_per_dim[n]
-                minidx = minlist[n]
-                maxidx = maxlist[n]
                 coord = allcoords[i][n]
+                nbins = nbins_per_dim[n]
+                minp = minlist[n]
+                maxp = maxlist[n]
 
-                minp = allcoords[minidx, n]
-                maxp = allcoords[maxidx, n]
                 bins = np.linspace(minp, maxp, nbins + 1)
-                bin_number = np.digitize(coord, bins)
+                bin_number = np.digitize(coord, bins) - 1
+
+                if isfinal is None or not isfinal[i]:
+                    if bin_number >= nbins:
+                        bin_number = nbins - 1
+                    elif bin_number < 0:
+                        bin_number = 0
+                elif bin_number >= nbins or bin_number < 0:
+                    print("coord dim%d: " % (n), coord)
+                    print("bins dim%d: " % (n), bins)
+                    print("bin number dim%d: %d" % (n, bin_number))
+                    raise ValueError("Walker out of boundary")
 
                 holder += bin_number * np.prod(nbins_per_dim[:n])
+
         output[i] = holder
 
     for n in range(ndim):
-        mini = minlist[n]
-        maxi = maxlist[n]
-        print(f"[MAB] Boundaries for dim{n}: {allcoords[mini, n]} - {allcoords[maxi, n]}")
+        print(f"[MAB] Boundaries for dim{n}: {minlist[n]} - {maxlist[n]}")
         if splitting and bottleneck:
-            fi = difflist[n]
-            bi = flipdifflist[n]
-
             print(f"[MAB] Bottlenecks for dim{n} (forward):")
-            if fi is not None:
-                print(f"{allcoords[fi, n]}")
-            else:
-                print("None detected")
+            print(f"{difflist[n]}")
 
             print(f"[MAB] Bottlenecks for dim{n} (backward):")
-            if bi is not None:
-                print(f"{allcoords[bi, n]}")
-            else:
-                print("None detected")
+            print(f"{flipdifflist[n]}")
 
     return output
 
