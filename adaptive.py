@@ -38,6 +38,11 @@ def map_mab(coords, mask, output, *args, **kwargs):
         weights = None
         splitting = False
 
+    if splitting:
+        print("splitting enabled")
+    else:
+        print("splitting disabled (no weights)")
+
     varcoords = np.copy(coords)
     originalcoords = np.copy(coords)
     if pca and len(output) > 1:
@@ -107,30 +112,31 @@ def map_mab(coords, mask, output, *args, **kwargs):
 
         special = False
         holder = 0
-        for n in range(ndim):
-            coord = allcoords[i][n]
+        if splitting:
+            for n in range(ndim):
+                coord = allcoords[i][n]
 
-            if splitting and bottleneck:
-                if coord == difflist[n]:
-                    holder = bottleneck_base + 2 * n
+                if bottleneck:
+                    if coord == difflist[n]:
+                        holder = bottleneck_base + 2 * n
+                        special = True
+                        print(f"[MAB] bottleneck walker (forward, dim{n}) assigned: {allcoords[i, :ndim]}")
+                        break
+                    elif coord == flipdifflist[n]:
+                        holder = bottleneck_base + 2 * n + 1
+                        special = True
+                        print(f"[MAB] bottleneck walker (backward, dim{n}) assigned: {allcoords[i, :ndim]}")
+                        break
+                if coord == minlist[n]:
+                    holder = boundary_base + 2 * n
                     special = True
-                    print("bottleneck walker (dim%d) assigned: " % (n), coord)
+                    print(f"[MAB] boundary walker (min, dim{n}) assigned: {allcoords[i, :ndim]}")
                     break
-                elif coord == flipdifflist[n]:
-                    holder = bottleneck_base + 2 * n + 1
+                elif coord == maxlist[n]:
+                    holder = boundary_base + 2 * n + 1
                     special = True
-                    print("bottleneck walker (dim%d) assigned: " % (n), coord)
+                    print(f"[MAB] boundary walker (max, dim{n}) assigned: {allcoords[i, :ndim]}")
                     break
-            if coord == minlist[n]:
-                holder = boundary_base + 2 * n
-                special = True
-                print("boundary walker (min, dim%d) assigned: " % (n), coord)
-                break
-            elif coord == maxlist[n]:
-                holder = boundary_base + 2 * n + 1
-                special = True
-                print("boundary walker (max, dim%d) assigned: " % (n), coord)
-                break
 
         if not special:
             for n in range(ndim):
