@@ -17,6 +17,10 @@ def map_mab(coords, mask, output, *args, **kwargs):
     weights = None
     isfinal = None
     splitting = False
+
+    # the segments should be sent in by the driver as half initial segments and half final segments
+    # allcoords contains all segments
+    # coords should contain ONLY final segments
     if coords.shape[1] > ndim:
         if coords.shape[1] > ndim + 1:
             isfinal = allcoords[:, ndim + 1].astype(np.bool_)
@@ -27,7 +31,17 @@ def map_mab(coords, mask, output, *args, **kwargs):
         mask = mask[isfinal]
         splitting = True
 
-    n_segments = coords.shape[0]
+    # in case where there is no final segments but initial ones in range
+    if not np.any(mask):
+        coords = allcoords[:, :ndim]
+        mask = allmask
+        weights = None
+        splitting = False
+
+    if splitting:
+        print("splitting enabled")
+    else:
+        print("splitting disabled (no weights)")
 
     varcoords = np.copy(coords)
     originalcoords = np.copy(coords)
@@ -52,22 +66,20 @@ def map_mab(coords, mask, output, *args, **kwargs):
     flipdifflist = []
     for n in range(ndim):
         # identify the boundary segments
-        currentmax = np.amax(coords[mask, n])
-        currentmin = np.amin(coords[mask, n])
-        maxlist.append(currentmax)
-        minlist.append(currentmin)
+        maxcoord = np.max(coords[mask, n])
+        mincoord = np.min(coords[mask, n])
+        maxlist.append(maxcoord)
+        minlist.append(mincoord)
 
         # detect the bottleneck segments
         if splitting:
             temp = np.column_stack((originalcoords[mask, n], weights[mask]))
             sorted_indices = temp[:, 0].argsort()
             temp = temp[sorted_indices]
-            seg_indices = np.arange(n_segments)[mask][sorted_indices]
             for p in range(len(temp)):
                 if temp[p][1] == 0:
                     temp[p][1] = 10 ** -39
             fliptemp = np.flipud(temp)
-            flip_seg_indices = np.flipud(seg_indices)
 
             difflist.append(None)
             flipdifflist.append(None)
@@ -83,35 +95,83 @@ def map_mab(coords, mask, output, *args, **kwargs):
                     j = j + 1
                 diff = -np.log(comprob) + np.log(temp[i][1])
                 if diff > maxdiff:
-                    difflist[n] = seg_indices[i]
+                    difflist[n] = temp[i][0]
                     maxdiff = diff
                 flipdiff = -np.log(flipcomprob) + np.log(fliptemp[i][1])
                 if flipdiff > flipmaxdiff:
-                    flipdifflist[n] = flip_seg_indices[i]
+                    flipdifflist[n] = fliptemp[i][0]
                     flipmaxdiff = flipdiff
 
     # assign segments to bins
-    base_number = 2 * ndim
+    # the total number of linear bins + 2 boundary bins each dim
+    boundary_base = np.prod(nbins_per_dim)
+    bottleneck_base = boundary_base + 2 * ndim
     for i in range(len(output)):
         if not allmask[i]:
             continue
 
-        holder = base_number
-        for n in range(ndim):
-            if splitting and bottleneck:
-                if i == difflist[n]:
-                    holder = np.prod(nbins_per_dim) + base_number + 2 * n
+        special = False
+        holder = 0
+        if splitting:
+            for n in range(ndim):
+                coord = allcoords[i][n]
+
+                if bottleneck:
+                    if coord == difflist[n]:
+                        holder = bottleneck_base + 2 * n
+                        special = True
+                        print(f"[MAB] bottleneck walker (forward, dim{n}) assigned: {allcoords[i, :ndim]}")
+                        break
+                    elif coord == flipdifflist[n]:
+                        holder = bottleneck_base + 2 * n + 1
+                        special = True
+                        print(f"[MAB] bottleneck walker (backward, dim{n}) assigned: {allcoords[i, :ndim]}")
+                        break
+                if coord == minlist[n]:
+                    holder = boundary_base + 2 * n
+                    special = True
+                    print(f"[MAB] boundary walker (min, dim{n}) assigned: {allcoords[i, :ndim]}")
                     break
-                elif i == flipdifflist[n]:
-                    holder = np.prod(nbins_per_dim) + base_number + 2 * n + 1
+                elif coord == maxlist[n]:
+                    holder = boundary_base + 2 * n + 1
+                    special = True
+                    print(f"[MAB] boundary walker (max, dim{n}) assigned: {allcoords[i, :ndim]}")
                     break
 
-        if holder == base_number:
-            for j in range(ndim):
-                bins = np.linspace(minlist[j], maxlist[j], nbins_per_dim[j] + 1)
-                bin_number = np.digitize(allcoords[i][j], bins) - 1
-                holder += bin_number * np.prod(nbins_per_dim[:j])
+        if not special:
+            for n in range(ndim):
+                coord = allcoords[i][n]
+                nbins = nbins_per_dim[n]
+                minp = minlist[n]
+                maxp = maxlist[n]
+
+                bins = np.linspace(minp, maxp, nbins + 1)
+                bin_number = np.digitize(coord, bins) - 1
+
+                if isfinal is None or not isfinal[i]:
+                    if bin_number >= nbins:
+                        bin_number = nbins - 1
+                    elif bin_number < 0:
+                        bin_number = 0
+                elif bin_number >= nbins or bin_number < 0:
+                    print("coord dim%d: %f" % (n, coord))
+                    print("bins dim%d: %s" % (n, str(bins)))
+                    print("bin number dim%d: %d" % (n, bin_number))
+                    raise ValueError("Walker out of boundary")
+
+                holder += bin_number * np.prod(nbins_per_dim[:n])
+
         output[i] = holder
+
+    for n in range(ndim):
+        print(f"[MAB] Boundaries for dim{n}: {minlist[n]} - {maxlist[n]}")
+        if splitting and bottleneck:
+            print(f"[MAB] Bottlenecks for dim{n} (forward):")
+            print(f"{difflist[n]}")
+
+            print(f"[MAB] Bottlenecks for dim{n} (backward):")
+            print(f"{flipdifflist[n]}")
+
     return output
 
 
